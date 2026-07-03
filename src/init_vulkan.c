@@ -20,9 +20,10 @@ vk_context ctx;
 void init_window()
 {
     if(!glfwInit()) { fail("Failed to glfwInit!"); }
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
+    glfwWindowHint(GLFW_ALPHA_BITS, 8);
     ctx.window = glfwCreateWindow(W_WIDTH, W_HEIGHT, WIN_NAME, NULL, NULL);
     glfwSetFramebufferSizeCallback(ctx.window, framebuffer_resize_callback);
     if (!ctx.window) { glfwTerminate(); fail("Failed to create window!"); }
@@ -34,10 +35,10 @@ void create_instance()
     VkApplicationInfo appInfo = {0};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "ucp";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "rainbow";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+    appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+    appInfo.pEngineName = NULL;
+    appInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_0;
 
     u32 glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);

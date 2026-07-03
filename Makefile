@@ -1,4 +1,4 @@
-CC        := clang
+CC        := cc
 DEBUGGER  := lldb
 BUILD_DIR ?= build
 TARGET    := $(BUILD_DIR)/ucp
