@@ -2,13 +2,13 @@
 
 #include "defines.h"
 #include "callback.h"
-#include "vulkan.h"
+#include "vulkan_header.h"
 
+#include "vulkan_init.c"
 #include "shaders/shaderdump.h"
-#include "init_vulkan.c"
 
 
-/* variables */
+/* SWAPCHAIN & IMAGES MANAGEMENT */
 
 void create_swap_chain(i32 width, i32 height)
 {
@@ -22,17 +22,14 @@ void create_swap_chain(i32 width, i32 height)
     VkSurfaceFormatKHR* formats = malloc(formatCount * sizeof(VkSurfaceFormatKHR));
     vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, formats);
     
-    VkSurfaceFormatKHR selectedFormat = {PREFERRED_COLOR_FORMAT, PREFERRED_COLOR_SPACE};
+    VkSurfaceFormatKHR selected_format = formats[0];
     
-    i32 formatFound = 0;
     for (u32 i = 0; i < formatCount; i++) {
         if (formats[i].format == PREFERRED_COLOR_FORMAT && formats[i].colorSpace == PREFERRED_COLOR_SPACE) {
-            selectedFormat = formats[i];
-            formatFound = 1;
+            selected_format = formats[i];
             break;
         }
     }
-    if (!formatFound) { selectedFormat = formats[0]; }
     free(formats);
     
     u32 presentModeCount;
@@ -69,8 +66,8 @@ void create_swap_chain(i32 width, i32 height)
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = ctx.surface;
     createInfo.minImageCount = imageCount;
-    createInfo.imageFormat = selectedFormat.format;
-    createInfo.imageColorSpace = selectedFormat.colorSpace;
+    createInfo.imageFormat = selected_format.format;
+    createInfo.imageColorSpace = selected_format.colorSpace;
     createInfo.imageExtent = extent;
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -84,15 +81,6 @@ void create_swap_chain(i32 width, i32 height)
     
     VkResult result = vkCreateSwapchainKHR(ctx.device, &createInfo, NULL, &ctx.swapChain);
     if (result != VKS) { fail("Failed to create swapchain! Error: %d", result); }
-    /* Previous realisation
-    u32 count;
-    vkGetSwapchainImagesKHR(ctx.device, ctx.swapChain, &count, NULL);
-    if (count > VK_IMAGE_COUNT) { count = VK_IMAGE_COUNT; }
-    vkGetSwapchainImagesKHR(ctx.device, ctx.swapChain, &count, ctx.swapChainImages);
-    
-    ctx.swapChainImageFormat = createInfo.imageFormat;
-    ctx.swapChainExtent = createInfo.imageExtent;
-    */
 
     u32 count;
     vkGetSwapchainImagesKHR(ctx.device, ctx.swapChain, &count, NULL);
@@ -108,7 +96,7 @@ void create_swap_chain(i32 width, i32 height)
   
 void create_image_views()
 {
-    for (size_t i = 0; i < ctx.swapChainImageCount; i++) {
+    for (u32 i = 0; i < ctx.swapChainImageCount; i++) {
         ctx.swapChainImageViews[i] = create_image_view(ctx.swapChainImages[i], ctx.swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     }
 }
@@ -175,6 +163,144 @@ void create_framebuffers()
     }    
 }
 
+
+/* BUFFER MANAGEMENT */
+
+u32 find_memory_type(u32 type_filter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties mem_properties;
+    vkGetPhysicalDeviceMemoryProperties(ctx.physicalDevice, &mem_properties);
+    
+    for (uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) {
+        if ((type_filter & (1 << i)) && 
+            (mem_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    fail("Failed to find suitable memory type!");
+}
+
+void create_uniform_bufers()
+{
+    VkDeviceSize bufferSize = sizeof(time_data);
+    
+    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
+        VkBufferCreateInfo bufferInfo = {0};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = bufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        
+        if (vkCreateBuffer(ctx.device, &bufferInfo, NULL, &ctx.ubo[i]) != VKS) {
+            fail("Failed to create uniform buffer %zu!", i);
+        }
+        
+        VkMemoryRequirements mem_requirements;
+        vkGetBufferMemoryRequirements(ctx.device, ctx.ubo[i], &mem_requirements);
+        
+        VkMemoryAllocateInfo allocInfo = {0};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = mem_requirements.size;
+        allocInfo.memoryTypeIndex = find_memory_type(
+            mem_requirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        
+        if (vkAllocateMemory(ctx.device, &allocInfo, NULL, &ctx.ubo_memory[i]) != VKS) {
+            fail("Failed to allocate uniform buffer memory %zu!", i);
+        }
+        
+        vkBindBufferMemory(ctx.device, ctx.ubo[i], ctx.ubo_memory[i], 0);
+    }
+    
+    info("Created %d uniform buffers", VK_IMAGE_COUNT);
+}
+
+void create_descriptor_set_layout()
+{
+    VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.pImmutableSamplers = NULL;
+    
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+    
+    if (vkCreateDescriptorSetLayout(ctx.device, &layoutInfo, NULL, &ctx.descriptor_set_layout) != VKS) {
+        fail("Failed to create descriptor set layout!");
+    }
+}
+
+void create_descriptor_pool()
+{
+    VkDescriptorPoolSize poolSize = {0};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = VK_IMAGE_COUNT;
+    
+    VkDescriptorPoolCreateInfo poolInfo = {0};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = VK_IMAGE_COUNT;
+    
+    if (vkCreateDescriptorPool(ctx.device, &poolInfo, NULL, &ctx.descriptor_pool) != VKS) {
+        fail("Failed to create descriptor pool!");
+    }
+}
+
+void create_descriptor_sets()
+{
+    VkDescriptorSetLayout layouts[VK_IMAGE_COUNT];
+    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
+        layouts[i] = ctx.descriptor_set_layout;
+    }
+    
+    VkDescriptorSetAllocateInfo allocInfo = {0};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = ctx.descriptor_pool;
+    allocInfo.descriptorSetCount = VK_IMAGE_COUNT;
+    allocInfo.pSetLayouts = layouts;
+    
+    if (vkAllocateDescriptorSets(ctx.device, &allocInfo, ctx.descriptor_set) != VKS) {
+        fail("Failed to allocate descriptor sets!");
+    }
+    
+    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
+        VkDescriptorBufferInfo bufferInfo = {0};
+        bufferInfo.buffer = ctx.ubo[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(time_data);
+        
+        VkWriteDescriptorSet descriptorWrite = {0};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = ctx.descriptor_set[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        
+        vkUpdateDescriptorSets(ctx.device, 1, &descriptorWrite, 0, NULL);
+    }
+    
+    info("Created %d descriptor sets", VK_IMAGE_COUNT);
+}
+
+void update_uniform_buffer(uint32_t currentFrame)
+{
+    void* data;
+    vkMapMemory(ctx.device, ctx.ubo_memory[currentFrame], 0, sizeof(times), 0, &data);
+    memcpy(data, &times, sizeof(times));
+    vkUnmapMemory(ctx.device, ctx.ubo_memory[currentFrame]);
+}
+
+
+/* GRAPHICS PIPELINE */
+
 VkShaderModule createShaderModule(const u32 *code, u32 size)
 {
     VkShaderModuleCreateInfo createInfo = {0};
@@ -238,8 +364,6 @@ void create_graphics_pipeline()
     viewportState.scissorCount = 1;
     viewportState.pScissors = &scissor;
 
-
-
     VkPipelineRasterizationStateCreateInfo rasterizer = {0};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
@@ -272,18 +396,17 @@ void create_graphics_pipeline()
     dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
-    VkPipelineLayout pipelineLayout;
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-    pipelineLayoutInfo.pSetLayouts = NULL;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = NULL;
+    VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
+    pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_info.setLayoutCount = 1;
+    pipeline_layout_info.pSetLayouts = &ctx.descriptor_set_layout;
+    pipeline_layout_info.pushConstantRangeCount = 0;
+    pipeline_layout_info.pPushConstantRanges = NULL;
     
-    if (vkCreatePipelineLayout(ctx.device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VKS) {
+    if (vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, NULL, &ctx.pipeline_layout) != VKS) {
         fail("failed to create pipeline layout!");
     }
-    
+
     VkGraphicsPipelineCreateInfo pipelineInfo = {0};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
@@ -295,7 +418,7 @@ void create_graphics_pipeline()
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.layout = ctx.pipeline_layout;
     pipelineInfo.renderPass = ctx.renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -305,10 +428,12 @@ void create_graphics_pipeline()
     if (result != VKS) {
         fail("failed to create graphics pipeline! Error: %d", result);
     }
-    vkDestroyPipelineLayout(ctx.device, pipelineLayout, NULL);
     vkDestroyShaderModule(ctx.device, vert_shader_m, NULL);
     vkDestroyShaderModule(ctx.device, frag_shader_m, NULL);
 }
+
+
+/* COMMAND MANAGEMENT */
 
 void create_command_buffers()
 {
@@ -324,6 +449,17 @@ void create_command_buffers()
     }
 }
 
+
+void create_command_pool()
+{
+    VkCommandPoolCreateInfo poolInfo = {0};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = ctx.DeviceQueueIndex;
+    if (vkCreateCommandPool(ctx.device, &poolInfo, NULL, &ctx.commandPool) != VKS) {
+      fail("Failed to create command pool!");
+    }
+}
 
 void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
@@ -342,13 +478,18 @@ void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     renderPassInfo.renderArea.extent = ctx.swapChainExtent;
 
     VkClearValue clearValues[1] = {};
-    clearValues[0].color = (VkClearColorValue) {{0.0f, 0.0f, 1.0f, 1.0f}};
+    clearValues[0].color = (VkClearColorValue) {{0.01f, 0.01f, 0.01f, 1.0f}};
 
     renderPassInfo.clearValueCount = (uint32_t) (sizeof(clearValues) / sizeof(clearValues[0]));
     renderPassInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.graphicsPipeline);
+
+    vkCmdBindDescriptorSets(
+            commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            ctx.pipeline_layout, 0, 1, &ctx.descriptor_set[times.i_frame], 0, NULL
+    );
     
     VkViewport viewport = {0};
     viewport.x = 0.0f;
@@ -372,14 +513,35 @@ void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     }
 }
 
+
+/* SYNC & DRAW */
+
+void create_sync_objects()
+{
+    VkSemaphoreCreateInfo semaphoreInfo = {0};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo = {0};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    
+    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
+        if (vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.imageAvailableSemaphores[i]) != VKS ||
+            vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.renderFinishedSemaphores[i]) != VKS ||
+            vkCreateFence(ctx.device, &fenceInfo, NULL, &ctx.inFlightFences[i]) != VKS) {
+            fail("Failed to create synchronization objects!");
+        }
+    }
+}
+
 void draw_frame()
 {
     vkWaitForFences(ctx.device, 1, &ctx.inFlightFences[times.i_frame], VK_TRUE, UINT64_MAX);
     vkResetFences(ctx.device, 1, &ctx.inFlightFences[times.i_frame]);
     times.prev = times.curr;
     times.curr = glfwGetTime();
-    times.diff = times.curr - times.prev;
-    
+    update_uniform_buffer(times.i_frame);
+
     u32 imageIndex;
     VkResult result = vkAcquireNextImageKHR(ctx.device, ctx.swapChain, UINT64_MAX, 
                                             ctx.imageAvailableSemaphores[times.i_frame], 
@@ -432,6 +594,9 @@ void draw_frame()
     times.frame++;
 }
 
+
+/* LIFECYCLE MANAGEMENT */
+
 void init_vulkan()
 {
     create_instance();
@@ -439,13 +604,19 @@ void init_vulkan()
     pick_physical_device();
     create_logical_device();
 
-    i32 width, height;
-    glfwGetFramebufferSize(ctx.window, &width, &height);
-    create_swap_chain(width, height);
+    i32 x, y;
+    glfwGetFramebufferSize(ctx.window, &x, &y);
+    create_swap_chain(x, y);
 
     create_image_views();
     create_render_pass();
     create_framebuffers();
+
+    create_descriptor_set_layout();
+    create_uniform_bufers();
+    create_descriptor_pool();
+    create_descriptor_sets();
+
     create_graphics_pipeline();
     create_command_pool();
     create_command_buffers();
@@ -468,6 +639,16 @@ void cleanup()
 {
     cleanup_swap_chain();
     vkDestroyPipeline(ctx.device, ctx.graphicsPipeline, NULL);
+
+    vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, NULL);
+    vkDestroyDescriptorPool(ctx.device, ctx.descriptor_pool, NULL);
+    vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, NULL);
+    
+    for (u32 i = 0; i < VK_IMAGE_COUNT; i++) {
+        vkDestroyBuffer(ctx.device, ctx.ubo[i], NULL);
+        vkFreeMemory(ctx.device, ctx.ubo_memory[i], NULL);
+    }
+
     vkDestroyCommandPool(ctx.device, ctx.commandPool, NULL);
     
     iterate(i, VK_IMAGE_COUNT) {
@@ -486,17 +667,17 @@ void cleanup()
 
 void handle_window_resize()
 {
-    i32 width = 0, height = 0;
-    glfwGetFramebufferSize(ctx.window, &width, &height);
+    i32 x = 0, y = 0;
+    glfwGetFramebufferSize(ctx.window, &x, &y);
     
-    while (!width + !height) {
-        glfwGetFramebufferSize(ctx.window, &width, &height);
+    while (!y + !x) {
+        glfwGetFramebufferSize(ctx.window, &x, &y);
         glfwWaitEvents();
     }
     vkDeviceWaitIdle(ctx.device);
 
     cleanup_swap_chain();
-    create_swap_chain(width, height);
+    create_swap_chain(x, y);
     create_image_views();
     create_framebuffers();
     window_resize = 0;

@@ -1,14 +1,7 @@
-/* INPUT CALLBACKS */
+/* callback.c */
 
+#include "callback.h"
 #include "defines.h"
-
-typedef struct {
-  f64 mouse_x;
-  f64 mouse_y;
-  f64 scroll_x;
-  f64 scroll_y;
-  u8  buttons;
-} MouseState;
 
 u8 window_resize = 0;
 void framebuffer_resize_callback(GLFWwindow* window, i32 width, i32 height) {

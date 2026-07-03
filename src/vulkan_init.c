@@ -1,8 +1,8 @@
 /* init_vulkan.c */
 
 #include "defines.h"
-#include "vulkan.h"
 #include "callback.h"
+#include "vulkan_header.h"
 
 /* variables */
 
@@ -13,9 +13,10 @@ u64 W_HEIGHT = 480;
 VkFormat PREFERRED_COLOR_FORMAT = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR PREFERRED_COLOR_SPACE = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
-time_data times = {0.0f, 0.0f, 0.0f, 0, 0};
+time_data times = {0.0f, 0.0f, 0, 0};
 vk_context ctx;
 
+/* DEVICE & INSTANCE CREATION */
 
 void init_window()
 {
@@ -32,13 +33,13 @@ void init_window()
 
 void create_instance()
 {
-    VkApplicationInfo appInfo = {0};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "ucp";
-    appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
-    appInfo.pEngineName = NULL;
-    appInfo.engineVersion = VK_MAKE_VERSION(0, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
+    VkApplicationInfo app_info = {0};
+    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app_info.pApplicationName = "ucp";
+    app_info.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
+    app_info.pEngineName = NULL;
+    app_info.engineVersion = VK_MAKE_VERSION(0, 0, 0);
+    app_info.apiVersion = VK_API_VERSION_1_0;
 
     u32 glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -54,7 +55,7 @@ void create_instance()
 
     VkInstanceCreateInfo createInfo = {0};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
+    createInfo.pApplicationInfo = &app_info;
     createInfo.enabledExtensionCount = glfwExtensionCount;
     createInfo.ppEnabledExtensionNames = glfwExtensions;
     createInfo.enabledLayerCount = layerCount;
@@ -76,17 +77,17 @@ void pick_physical_device()
 {
     u32 deviceCount = 0;
     VkResult res = vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, NULL);
-    if (res != VKS) { fail("Fail to enumerate physical devices! %d", res); }
-    if (deviceCount == 0) { fail("Found 0 GPUs with Vulkan support!\n"); }
+    if (res != VKS) { fail("Fail to enumerate physical devices! Error code: %d", res); }
+    if (!deviceCount) { fail("Found 0 devices with Vulkan support!\n"); }
 
     VkPhysicalDevice *devices = malloc(deviceCount * sizeof(VkPhysicalDevice));
     vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices);
     ctx.physicalDevice = devices[0];
     free(devices);
     
-    VkPhysicalDeviceProperties deviceProperties;
-    vkGetPhysicalDeviceProperties(ctx.physicalDevice, &deviceProperties);
-    info("Selected GPU: %s", deviceProperties.deviceName);
+    VkPhysicalDeviceProperties device_properties;
+    vkGetPhysicalDeviceProperties(ctx.physicalDevice, &device_properties);
+    info("Selected GPU: %s", device_properties.deviceName);
 }
 
 void create_logical_device()
@@ -103,7 +104,7 @@ void create_logical_device()
         vkGetPhysicalDeviceSurfaceSupportKHR(ctx.physicalDevice, i, ctx.surface, &presentSupport);
         if (presentSupport) {
           selectedIndex = i;
-          info("Selected queue family %d (graphics + present)", i);
+          info("Selected queue family %u (graphics + present)", i);
           break;
         }
       }
@@ -149,7 +150,10 @@ void create_logical_device()
     ctx.DeviceQueueIndex = selectedIndex;
 }
 
-VkImageView create_image_view(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 miplevels)
+
+/* */
+
+VkImageView create_image_view(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags, u32 miplevels)
 {
     VkImageViewCreateInfo viewInfo = {0};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -160,40 +164,10 @@ VkImageView create_image_view(VkImage image, VkFormat format, VkImageAspectFlags
     viewInfo.subresourceRange.levelCount = miplevels;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
-    viewInfo.subresourceRange.aspectMask = aspectFlags;
+    viewInfo.subresourceRange.aspectMask = aspect_flags;
   
-    VkImageView imageView;
-    if (vkCreateImageView(ctx.device, &viewInfo, NULL, &imageView) != VKS) { fail("Failed to create image view!"); }
-    return imageView;
+    VkImageView image_view;
+    if (vkCreateImageView(ctx.device, &viewInfo, NULL, &image_view) != VKS) { fail("Failed to create image view!"); }
+    return image_view;
 }
-
-void create_command_pool()
-{
-    VkCommandPoolCreateInfo poolInfo = {0};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = ctx.DeviceQueueIndex;
-    if (vkCreateCommandPool(ctx.device, &poolInfo, NULL, &ctx.commandPool) != VKS) {
-      fail("Failed to create command pool!");
-    }
-}
-
-void create_sync_objects()
-{
-    VkSemaphoreCreateInfo semaphoreInfo = {0};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fenceInfo = {0};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    
-    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
-        if (vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.imageAvailableSemaphores[i]) != VKS ||
-            vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.renderFinishedSemaphores[i]) != VKS ||
-            vkCreateFence(ctx.device, &fenceInfo, NULL, &ctx.inFlightFences[i]) != VKS) {
-            fail("Failed to create synchronization objects!");
-        }
-    }
-}
-
 

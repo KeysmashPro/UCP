@@ -1,9 +1,9 @@
-/* MACROS DEFINES AND TYPEDEFS */
+/* defines.h */
 
 #ifndef DEFINES_H
 #define DEFINES_H
 
-/* All header files */
+/* MACROS DEFINES TYPEDEFS AND LIBS */
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -15,8 +15,8 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
-/* Macro */
 
+/* general macros */
 #define iterate(i, n) for (size_t (i) = 0; (i) < (size_t)(n); ++(i))
 
 typedef uint64_t u64;

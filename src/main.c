@@ -2,9 +2,7 @@
 
 #include "defines.h"
 #include "callback.c"
-#include "vulkan.c"
-
-f64 target_fps = 165.000;
+#include "vulkan_core.c"
 
 void main_loop(void)
 {
