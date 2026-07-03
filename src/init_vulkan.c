@@ -75,7 +75,8 @@ void create_surface()
 void pick_physical_device()
 {
     u32 deviceCount = 0;
-    if (vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, NULL) != VKS) { fail("Fail physical devices"); }
+    VkResult res = vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, NULL);
+    if (res != VKS) { fail("Fail to enumerate physical devices! %d", res); }
     if (deviceCount == 0) { fail("Found 0 GPUs with Vulkan support!\n"); }
 
     VkPhysicalDevice *devices = malloc(deviceCount * sizeof(VkPhysicalDevice));
