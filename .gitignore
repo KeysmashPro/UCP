@@ -1,3 +1,4 @@
 src/shaders/shaderdump.h
 build*/
 lib/
+*.out
