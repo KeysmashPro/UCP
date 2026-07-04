@@ -16,7 +16,7 @@ void main_loop(void)
 i32 main(i32 argc, char **argv)
 {
     init_window();
-    MouseState state = {0.0, 0.0};
+    mouse_state state;
     glfwSetWindowUserPointer(ctx.window, &state);
     glfwSetKeyCallback(ctx.window, key_callback);
     glfwSetCursorPosCallback(ctx.window, cursor_pos_callback);

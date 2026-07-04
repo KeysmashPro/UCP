@@ -3,6 +3,7 @@
 #ifndef VULKAN_H
 #define VULKAN_H
 
+#include "callback.h"
 #include "defines.h"
 
 #define VKS VK_SUCCESS
@@ -10,6 +11,8 @@
 #define MAX_SWAPCHAIN_IMAGES 8
 
 typedef struct {
+    u8 resize_request;
+
     GLFWwindow *window;
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -47,8 +50,14 @@ typedef struct {
     f32 curr;
     f32 prev;
     u32 frame;
-    u32 i_frame;
-} time_data;
+    u32 image;
+    f32 x_size;
+    f32 y_size;
+    mouse_state mouse;
+} ubo_data;
+
+
+extern vk_context ctx;
 
 
 void initWindow(void);

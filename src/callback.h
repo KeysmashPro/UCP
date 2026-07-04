@@ -6,15 +6,12 @@
 
 #include "defines.h"
 
-extern u8 window_resize;
-
 typedef struct {
-  f64 mouse_x;
-  f64 mouse_y;
-  f64 scroll_x;
-  f64 scroll_y;
-  u8  buttons;
-} MouseState;
+  f32 pos_x;
+  f32 pos_y;
+  f32 scroll;
+  u32 buttons;
+} mouse_state;
 
 
 void framebuffer_resize_callback(GLFWwindow *window, i32 width, i32 height);

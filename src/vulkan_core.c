@@ -182,7 +182,7 @@ u32 find_memory_type(u32 type_filter, VkMemoryPropertyFlags properties)
 
 void create_uniform_bufers()
 {
-    VkDeviceSize bufferSize = sizeof(time_data);
+    VkDeviceSize bufferSize = sizeof(ubo_data);
     
     for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
         VkBufferCreateInfo bufferInfo = {0};
@@ -222,7 +222,7 @@ void create_descriptor_set_layout()
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     uboLayoutBinding.pImmutableSamplers = NULL;
     
     VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
@@ -273,7 +273,7 @@ void create_descriptor_sets()
         VkDescriptorBufferInfo bufferInfo = {0};
         bufferInfo.buffer = ctx.ubo[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(time_data);
+        bufferInfo.range = sizeof(ubo_data);
         
         VkWriteDescriptorSet descriptorWrite = {0};
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -293,8 +293,8 @@ void create_descriptor_sets()
 void update_uniform_buffer(uint32_t currentFrame)
 {
     void* data;
-    vkMapMemory(ctx.device, ctx.ubo_memory[currentFrame], 0, sizeof(times), 0, &data);
-    memcpy(data, &times, sizeof(times));
+    vkMapMemory(ctx.device, ctx.ubo_memory[currentFrame], 0, sizeof(ubo), 0, &data);
+    memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(ctx.device, ctx.ubo_memory[currentFrame]);
 }
 
@@ -478,7 +478,7 @@ void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     renderPassInfo.renderArea.extent = ctx.swapChainExtent;
 
     VkClearValue clearValues[1] = {};
-    clearValues[0].color = (VkClearColorValue) {{0.01f, 0.01f, 0.01f, 1.0f}};
+    clearValues[0].color = (VkClearColorValue) {{0.0f, 0.0f, 0.0f, 1.0f}};
 
     renderPassInfo.clearValueCount = (uint32_t) (sizeof(clearValues) / sizeof(clearValues[0]));
     renderPassInfo.pClearValues = clearValues;
@@ -488,7 +488,7 @@ void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 
     vkCmdBindDescriptorSets(
             commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-            ctx.pipeline_layout, 0, 1, &ctx.descriptor_set[times.i_frame], 0, NULL
+            ctx.pipeline_layout, 0, 1, &ctx.descriptor_set[ubo.image], 0, NULL
     );
     
     VkViewport viewport = {0};
@@ -536,15 +536,20 @@ void create_sync_objects()
 
 void draw_frame()
 {
-    vkWaitForFences(ctx.device, 1, &ctx.inFlightFences[times.i_frame], VK_TRUE, UINT64_MAX);
-    vkResetFences(ctx.device, 1, &ctx.inFlightFences[times.i_frame]);
-    times.prev = times.curr;
-    times.curr = glfwGetTime();
-    update_uniform_buffer(times.i_frame);
+    vkWaitForFences(ctx.device, 1, &ctx.inFlightFences[ubo.image], VK_TRUE, UINT64_MAX);
+    vkResetFences(ctx.device, 1, &ctx.inFlightFences[ubo.image]);
+    ubo.prev = ubo.curr;
+    ubo.curr = glfwGetTime();
+
+    mouse_state* state = (mouse_state*)glfwGetWindowUserPointer(ctx.window);
+    ubo.mouse.pos_x = state->pos_x;
+    ubo.mouse.pos_y = state->pos_y;
+
+    update_uniform_buffer(ubo.image);
 
     u32 imageIndex;
     VkResult result = vkAcquireNextImageKHR(ctx.device, ctx.swapChain, UINT64_MAX, 
-                                            ctx.imageAvailableSemaphores[times.i_frame], 
+                                            ctx.imageAvailableSemaphores[ubo.image], 
                                             VK_NULL_HANDLE, &imageIndex);
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR ) { 
@@ -552,26 +557,26 @@ void draw_frame()
         return;
     }
     
-    vkResetCommandBuffer(ctx.commandBuffers[times.i_frame], 0);
-    record_command_buffer(ctx.commandBuffers[times.i_frame], imageIndex);
+    vkResetCommandBuffer(ctx.commandBuffers[ubo.image], 0);
+    record_command_buffer(ctx.commandBuffers[ubo.image], imageIndex);
     
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     
-    VkSemaphore waitSemaphores[] = {ctx.imageAvailableSemaphores[times.i_frame]};
+    VkSemaphore waitSemaphores[] = {ctx.imageAvailableSemaphores[ubo.image]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &ctx.commandBuffers[times.i_frame];
+    submitInfo.pCommandBuffers = &ctx.commandBuffers[ubo.image];
     
-    VkSemaphore signalSemaphores[] = {ctx.renderFinishedSemaphores[times.i_frame]};
+    VkSemaphore signalSemaphores[] = {ctx.renderFinishedSemaphores[ubo.image]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
     
-    vkQueueSubmit(ctx.queue, 1, &submitInfo, ctx.inFlightFences[times.i_frame]);
+    vkQueueSubmit(ctx.queue, 1, &submitInfo, ctx.inFlightFences[ubo.image]);
     
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -585,13 +590,13 @@ void draw_frame()
     
     result = vkQueuePresentKHR(ctx.queue, &presentInfo);
      if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        window_resize = 1;
+        ctx.resize_request = 1;
         handle_window_resize();
      }
     
-    if (window_resize) { handle_window_resize(); }
-    times.i_frame = (times.i_frame + 1) % VK_IMAGE_COUNT;
-    times.frame++;
+    if (ctx.resize_request) { handle_window_resize(); }
+    ubo.image = (ubo.image + 1) % VK_IMAGE_COUNT;
+    ubo.frame++;
 }
 
 
@@ -623,7 +628,7 @@ void init_vulkan()
     create_sync_objects();
 
     info("Vulkan initialized successfully");
-    times.prev = glfwGetTime();
+    ubo.prev = glfwGetTime();
 }
 
 void cleanup_swap_chain()
@@ -676,9 +681,12 @@ void handle_window_resize()
     }
     vkDeviceWaitIdle(ctx.device);
 
+    ubo.x_size = (f32)x;
+    ubo.y_size = (f32)y;
+
     cleanup_swap_chain();
     create_swap_chain(x, y);
     create_image_views();
     create_framebuffers();
-    window_resize = 0;
+    ctx.resize_request = 0;
 }

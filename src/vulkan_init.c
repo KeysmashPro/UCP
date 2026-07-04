@@ -13,7 +13,7 @@ u64 W_HEIGHT = 480;
 VkFormat PREFERRED_COLOR_FORMAT = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR PREFERRED_COLOR_SPACE = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
-time_data times = {0.0f, 0.0f, 0, 0};
+ubo_data ubo = {};
 vk_context ctx;
 
 /* DEVICE & INSTANCE CREATION */
