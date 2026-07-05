@@ -1,4 +1,4 @@
-/* defines.h */
+/*** defines.h sys-libs and macros hub ***/
 
 #ifndef DEFINES_H
 #define DEFINES_H
@@ -11,10 +11,9 @@
 #include <stdio.h>
 #include <time.h>
 
-#define GLFW_INCLUDE_VULKAN
+#include "../lib/volk/volk.h"
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.h>
-
 
 /* general macros */
 #define iterate(i, n) for (size_t (i) = 0; (i) < (size_t)(n); ++(i))

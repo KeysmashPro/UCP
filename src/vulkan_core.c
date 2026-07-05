@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "callback.h"
 #include "vulkan_header.h"
+#include "../lib/volk/volk.h"
 
 #include "vulkan_init.c"
 #include "shaders/shaderdump.h"
@@ -178,6 +179,7 @@ u32 find_memory_type(u32 type_filter, VkMemoryPropertyFlags properties)
         }
     }
     fail("Failed to find suitable memory type!");
+    return 1;
 }
 
 void create_uniform_bufers()

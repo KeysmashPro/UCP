@@ -6,3 +6,5 @@ Vulkan program prototype
 Build with `make`  
 Run with `make run`
 
+- To cross-compile for windows with mingw use 'make win'
+

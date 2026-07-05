@@ -10,6 +10,7 @@
 #define VK_IMAGE_COUNT 3
 #define MAX_SWAPCHAIN_IMAGES 8
 
+
 typedef struct {
     u8 resize_request;
 
@@ -57,7 +58,10 @@ typedef struct {
 } ubo_data;
 
 
+/* variables */
+
 extern vk_context ctx;
+extern ubo_data ubo;
 
 
 void initWindow(void);

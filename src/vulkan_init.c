@@ -4,22 +4,27 @@
 #include "callback.h"
 #include "vulkan_header.h"
 
+#include "../lib/volk/volk.h"
+
 /* variables */
 
-char *WIN_NAME = "UCP";
+char *WIN_NAME = "mpc";
 u64 W_WIDTH  = 720;
 u64 W_HEIGHT = 480;
 
 VkFormat PREFERRED_COLOR_FORMAT = VK_FORMAT_B8G8R8A8_SRGB;
 VkColorSpaceKHR PREFERRED_COLOR_SPACE = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
-ubo_data ubo = {};
-vk_context ctx;
+vk_context ctx = {0};
+ubo_data ubo   = {0};
 
 /* DEVICE & INSTANCE CREATION */
 
 void init_window()
 {
+    if (volkInitialize() != VKS) { fail("Error: Vulkan loader not found on this system!"); }
+    glfwInitVulkanLoader(vkGetInstanceProcAddr);
+
     if(!glfwInit()) { fail("Failed to glfwInit!"); }
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -35,7 +40,7 @@ void create_instance()
 {
     VkApplicationInfo app_info = {0};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "ucp";
+    app_info.pApplicationName = "mpc";
     app_info.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
     app_info.pEngineName = NULL;
     app_info.engineVersion = VK_MAKE_VERSION(0, 0, 0);
@@ -65,12 +70,13 @@ void create_instance()
     if (instance_result != VKS) {
         fail("Vulkan instance creation failed! Error code: %d", instance_result);
     }
+    volkLoadInstance(ctx.instance);
 }
 
 void create_surface()
 {
     VkResult res = glfwCreateWindowSurface(ctx.instance, ctx.window, NULL, &ctx.surface);
-    if (res != VKS) { fail("failed to create window surface!"); }
+    if (res != VKS) { fail("failed to create window surface! VkResult = %d", res); }
 }
 
 void pick_physical_device()
