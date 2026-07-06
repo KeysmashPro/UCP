@@ -28,12 +28,15 @@ void init_window()
     if(!glfwInit()) { fail("Failed to glfwInit!"); }
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
-    glfwWindowHint(GLFW_ALPHA_BITS, 8);
     ctx.window = glfwCreateWindow(W_WIDTH, W_HEIGHT, WIN_NAME, NULL, NULL);
     glfwSetFramebufferSizeCallback(ctx.window, framebuffer_resize_callback);
     if (!ctx.window) { glfwTerminate(); fail("Failed to create window!"); }
     glfwShowWindow(ctx.window);
+
+    i32 x = 0, y = 0;
+    glfwGetFramebufferSize(ctx.window, &x, &y);
+    ubo.x_size = (f32)x;
+    ubo.y_size = (f32)y;
 }
 
 void create_instance()

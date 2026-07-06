@@ -36,12 +36,7 @@ void create_swap_chain(i32 width, i32 height)
     u32 presentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, ctx.surface, &presentModeCount, NULL);
     if (presentModeCount == 0) { fail("No present modes found!"); }
-    
-    VkPresentModeKHR* presentModes = malloc(presentModeCount * sizeof(VkPresentModeKHR));
-    vkGetPhysicalDeviceSurfacePresentModesKHR(ctx.physicalDevice, ctx.surface, &presentModeCount, presentModes);
-    
     VkPresentModeKHR selectedPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-    free(presentModes);
     
     VkExtent2D extent = {W_WIDTH, W_HEIGHT};
     if (capabilities.currentExtent.width != 0xFFFFFFFF) {
