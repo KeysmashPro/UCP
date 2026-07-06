@@ -1,11 +1,15 @@
 # MPC
+
 Vulkan program prototype
 
-- You'll need the Vulkan & GLFW toolchain to build this.
+## Requirements
 
-Build with `make`  
-Run with `make run`
+- Vulkan SDK
+- GLFW
 
-To cross-compile for windows with mingw use:
-`make win`
+## Build
 
+```bash
+make          # native build
+make run      # build and run
+make win      # cross-compile for windows (mingw required)
