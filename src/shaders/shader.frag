@@ -17,17 +17,18 @@ layout(set = 0, binding = 0) uniform UBO {
 } ubo;
 
 void main() {
-    vec2 p = (fragUV - 0.5) * 1.5;
+    float xy = (ubo.x_res / ubo.y_res);
+    float x = (fragUV.x) * xy;
+    float y = (fragUV.y);
+    x -= ((ubo.x_pos / ubo.x_res) * 2.0 - 1.0) * xy;
+    y -= (ubo.y_pos / ubo.y_res) * 2.0 - 1.0;
 
-    p.x *= ubo.x_res / ubo.y_res;
+    float dst = (x * x) + (y * y);
+    float wave = 2.0 / ((sin(dst * 4.0 - ubo.curr * 3.0) + 1.0) * 8.0);
 
-    float x = (p.x + 1.2 * sin(ubo.curr) + 1.0);
-    float y = (p.y + 0.7 * cos(ubo.curr) + 0.4);
-    float d2 = x* x + y * y;
-    float wave =  2 / ((sin(d2 * 2.0 - ubo.curr * 3) + 1.0) * 8);
-    float r = wave * (sin(ubo.curr * 0.5) + 1.03) / 2;
-    float g = wave * (sin(ubo.curr * 0.5 + 2) + 1.03) / 2;
-    float b = wave * (cos(ubo.curr * 0.5) + 1.03) / 2;
+    float r = wave * (sin(ubo.curr * 0.5) + 1.03) / 2.0;
+    float g = wave * (sin(ubo.curr * 0.5 + 2.0) + 1.03) / 2.0;
+    float b = wave * (cos(ubo.curr * 0.5) + 1.03) / 2.0;
 
     outColor = vec4(r, g, b, 1.0);
 }

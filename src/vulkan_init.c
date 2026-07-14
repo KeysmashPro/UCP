@@ -6,7 +6,7 @@
 
 #include "../lib/volk/volk.h"
 
-/* variables */
+/* VARIABLES */
 
 char *WIN_NAME = "mpc";
 u64 W_WIDTH  = 720;
@@ -17,6 +17,8 @@ VkColorSpaceKHR PREFERRED_COLOR_SPACE = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
 vk_context ctx = {0};
 ubo_data ubo   = {0};
+ssbo_data ssbo = {0};
+
 
 /* DEVICE & INSTANCE CREATION */
 
@@ -158,9 +160,6 @@ void create_logical_device()
     vkGetDeviceQueue(ctx.device, selectedIndex, 0, &ctx.queue);
     ctx.DeviceQueueIndex = selectedIndex;
 }
-
-
-/* */
 
 VkImageView create_image_view(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags, u32 miplevels)
 {

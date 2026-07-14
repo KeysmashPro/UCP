@@ -1,8 +1,8 @@
 /* main.c - Main hub for Unity-build */
 
 #include "defines.h"
-#include "vulkan_core.c"
 #include "callback.c"
+#include "vulkan_core.c"
 
 #include "platform.c"
 #include "../lib/volk/volk.c"
@@ -20,8 +20,7 @@ i32 main(i32 argc, char **argv)
 {
     platform_init();
     init_window();
-    mouse_state state = {0};
-    glfwSetWindowUserPointer(ctx.window, &state);
+    glfwSetWindowUserPointer(ctx.window, &ctx.mouse);
     glfwSetKeyCallback(ctx.window, key_callback);
     glfwSetCursorPosCallback(ctx.window, cursor_pos_callback);
     glfwSetMouseButtonCallback(ctx.window, mouse_button_callback);

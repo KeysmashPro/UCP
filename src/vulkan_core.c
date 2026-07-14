@@ -6,6 +6,7 @@
 #include "../lib/volk/volk.h"
 
 #include "vulkan_init.c"
+#include "vulkan_compute.c"
 #include "shaders/shaderdump.h"
 
 
@@ -20,8 +21,7 @@ void create_swap_chain(i32 width, i32 height)
     u32 formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, NULL);
     if (!formatCount) { fail("No surface formats found!"); }
-    VkSurfaceFormatKHR* formats = malloc(formatCount * sizeof(VkSurfaceFormatKHR));
-    vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, formats);
+    VkSurfaceFormatKHR* formats = malloc(formatCount * sizeof(VkSurfaceFormatKHR)); vkGetPhysicalDeviceSurfaceFormatsKHR(ctx.physicalDevice, ctx.surface, &formatCount, formats);
     
     VkSurfaceFormatKHR selected_format = formats[0];
     
@@ -160,7 +160,7 @@ void create_framebuffers()
 }
 
 
-/* BUFFER MANAGEMENT */
+/* BUFFERS MANAGEMENT */
 
 u32 find_memory_type(u32 type_filter, VkMemoryPropertyFlags properties)
 {
@@ -177,124 +177,142 @@ u32 find_memory_type(u32 type_filter, VkMemoryPropertyFlags properties)
     return 1;
 }
 
-void create_uniform_bufers()
+void create_buffers(
+    u32 count,
+    VkBuffer *buffers,
+    VkDeviceMemory *memories,
+    VkDeviceSize size,
+    VkBufferUsageFlags usage_bit,
+    VkMemoryPropertyFlags properties,
+    const char *name)
 {
-    VkDeviceSize bufferSize = sizeof(ubo_data);
-    
-    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = bufferSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    for (u32 i = 0; i < count; i++) {
+        VkBufferCreateInfo buffer_info = {0};
+        buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = size;
+        buffer_info.usage = usage_bit;
+        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         
-        if (vkCreateBuffer(ctx.device, &bufferInfo, NULL, &ctx.ubo[i]) != VKS) {
-            fail("Failed to create uniform buffer %zu!", i);
+        if (vkCreateBuffer(ctx.device, &buffer_info, NULL, &buffers[i]) != VKS) {
+            fail("Failed to create [%s] : %u!", name, i);
         }
         
         VkMemoryRequirements mem_requirements;
-        vkGetBufferMemoryRequirements(ctx.device, ctx.ubo[i], &mem_requirements);
+        vkGetBufferMemoryRequirements(ctx.device, buffers[i], &mem_requirements);
         
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = mem_requirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(
-            mem_requirements.memoryTypeBits,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
+        VkMemoryAllocateInfo alloc_info = {0};
+        alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits, properties);
         
-        if (vkAllocateMemory(ctx.device, &allocInfo, NULL, &ctx.ubo_memory[i]) != VKS) {
-            fail("Failed to allocate uniform buffer memory %zu!", i);
+        if (vkAllocateMemory(ctx.device, &alloc_info, NULL, &memories[i]) != VKS) {
+            fail("Failed to allocate memory for [%s] : %u!", name, i);
         }
         
-        vkBindBufferMemory(ctx.device, ctx.ubo[i], ctx.ubo_memory[i], 0);
-    }
-    
-    info("Created %d uniform buffers", VK_IMAGE_COUNT);
-}
-
-void create_descriptor_set_layout()
-{
-    VkDescriptorSetLayoutBinding uboLayoutBinding = {0};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    uboLayoutBinding.pImmutableSamplers = NULL;
-    
-    VkDescriptorSetLayoutCreateInfo layoutInfo = {0};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
-    
-    if (vkCreateDescriptorSetLayout(ctx.device, &layoutInfo, NULL, &ctx.descriptor_set_layout) != VKS) {
-        fail("Failed to create descriptor set layout!");
+        vkBindBufferMemory(ctx.device, buffers[i], memories[i], 0);
     }
 }
 
-void create_descriptor_pool()
+void create_descriptor_set_layout(VkDescriptorSetLayout *layout,
+                                  VkDescriptorType type, const char *name)
 {
-    VkDescriptorPoolSize poolSize = {0};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = VK_IMAGE_COUNT;
+    VkDescriptorSetLayoutBinding ubo_layout_binding = {0};
+    ubo_layout_binding.binding = 0;
+    ubo_layout_binding.descriptorType = type;
+    ubo_layout_binding.descriptorCount = 1;
+    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    ubo_layout_binding.pImmutableSamplers = NULL;
     
-    VkDescriptorPoolCreateInfo poolInfo = {0};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = VK_IMAGE_COUNT;
+    VkDescriptorSetLayoutCreateInfo layout_info = {0};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = 1;
+    layout_info.pBindings = &ubo_layout_binding;
     
-    if (vkCreateDescriptorPool(ctx.device, &poolInfo, NULL, &ctx.descriptor_pool) != VKS) {
+    if (vkCreateDescriptorSetLayout(ctx.device, &layout_info, NULL, layout) != VKS) {
+        fail("Failed to create descriptor set for [%s]!", name);
+    }
+}
+
+void create_descriptor_pool(void)
+{
+    VkDescriptorPoolSize pool_sizes[3];
+    
+    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_sizes[0].descriptorCount = VK_IMAGE_COUNT;
+    
+    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    pool_sizes[1].descriptorCount = VK_IMAGE_COUNT + 1;
+    
+    pool_sizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    pool_sizes[2].descriptorCount = 1;
+    
+    VkDescriptorPoolCreateInfo pool_info = {0};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.poolSizeCount = 3;
+    pool_info.pPoolSizes = pool_sizes;
+    pool_info.maxSets = VK_IMAGE_COUNT * 2 + 1;
+    
+    if (vkCreateDescriptorPool(ctx.device, &pool_info, NULL, &ctx.descriptor_pool) != VKS) {
         fail("Failed to create descriptor pool!");
     }
 }
 
-void create_descriptor_sets()
+void create_descriptor_sets(
+    u32 count,
+    VkDescriptorSet *descriptor_sets,
+    VkDescriptorSetLayout layout,
+    VkBuffer *buffers,
+    VkDeviceSize buffer_size,
+    VkDescriptorType descriptor_type,
+    const char *name)
 {
-    VkDescriptorSetLayout layouts[VK_IMAGE_COUNT];
-    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
-        layouts[i] = ctx.descriptor_set_layout;
+    VkDescriptorSetLayout *layouts = malloc(count * sizeof(VkDescriptorSetLayout));
+    for (u32 i = 0; i < count; i++) {
+        layouts[i] = layout;
     }
     
-    VkDescriptorSetAllocateInfo allocInfo = {0};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = ctx.descriptor_pool;
-    allocInfo.descriptorSetCount = VK_IMAGE_COUNT;
-    allocInfo.pSetLayouts = layouts;
+    VkDescriptorSetAllocateInfo alloc_info = {0};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = ctx.descriptor_pool;
+    alloc_info.descriptorSetCount = count;
+    alloc_info.pSetLayouts = layouts;
     
-    if (vkAllocateDescriptorSets(ctx.device, &allocInfo, ctx.descriptor_set) != VKS) {
-        fail("Failed to allocate descriptor sets!");
+    if (vkAllocateDescriptorSets(ctx.device, &alloc_info, descriptor_sets) != VKS) {
+        fail("Failed to allocate descriptor sets for [%s]!", name);
     }
     
-    for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
-        VkDescriptorBufferInfo bufferInfo = {0};
-        bufferInfo.buffer = ctx.ubo[i];
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(ubo_data);
+    for (u32 i = 0; i < count; i++) {
+        VkDescriptorBufferInfo buffer_info = {0};
+        buffer_info.buffer = buffers[i];
+        buffer_info.offset = 0;
+        buffer_info.range = buffer_size;
         
-        VkWriteDescriptorSet descriptorWrite = {0};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = ctx.descriptor_set[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
+        VkWriteDescriptorSet descriptor_write = {0};
+        descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_write.dstSet = descriptor_sets[i];
+        descriptor_write.dstBinding = 0;
+        descriptor_write.dstArrayElement = 0;
+        descriptor_write.descriptorType = descriptor_type;
+        descriptor_write.descriptorCount = 1;
+        descriptor_write.pBufferInfo = &buffer_info;
         
-        vkUpdateDescriptorSets(ctx.device, 1, &descriptorWrite, 0, NULL);
+        vkUpdateDescriptorSets(ctx.device, 1, &descriptor_write, 0, NULL);
     }
-    
-    info("Created %d descriptor sets", VK_IMAGE_COUNT);
+    free(layouts);
+}
+
+void update_buffer(VkDeviceMemory memory, const void *data, VkDeviceSize size)
+{
+    void *mapped_data;
+    vkMapMemory(ctx.device, memory, 0, size, 0, &mapped_data);
+    memcpy(mapped_data, data, size);
+    vkUnmapMemory(ctx.device, memory);
 }
 
 void update_uniform_buffer(uint32_t currentFrame)
 {
-    void* data;
-    vkMapMemory(ctx.device, ctx.ubo_memory[currentFrame], 0, sizeof(ubo), 0, &data);
-    memcpy(data, &ubo, sizeof(ubo));
-    vkUnmapMemory(ctx.device, ctx.ubo_memory[currentFrame]);
+    update_buffer(ctx.ubo_memories[currentFrame], &ubo, sizeof(ubo));
 }
-
 
 /* GRAPHICS PIPELINE */
 
@@ -393,10 +411,15 @@ void create_graphics_pipeline()
     dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
+    VkDescriptorSetLayout layouts[] = {
+        ctx.ubo_descriptor_set_layout,
+        ctx.ssbo_descriptor_set_layout
+    };
+
     VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &ctx.descriptor_set_layout;
+    pipeline_layout_info.setLayoutCount = 2;
+    pipeline_layout_info.pSetLayouts = layouts;
     pipeline_layout_info.pushConstantRangeCount = 0;
     pipeline_layout_info.pPushConstantRanges = NULL;
     
@@ -446,7 +469,6 @@ void create_command_buffers()
     }
 }
 
-
 void create_command_pool()
 {
     VkCommandPoolCreateInfo poolInfo = {0};
@@ -483,10 +505,14 @@ void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.graphicsPipeline);
 
-    vkCmdBindDescriptorSets(
-            commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-            ctx.pipeline_layout, 0, 1, &ctx.descriptor_set[ubo.image], 0, NULL
-    );
+
+    VkDescriptorSet sets[] = {
+        ctx.ubo_descriptor_sets[ubo.image],
+        ctx.ssbo_descriptor_set
+    };
+
+    vkCmdBindDescriptorSets( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                             ctx.pipeline_layout, 0, 2, sets, 0, NULL );
     
     VkViewport viewport = {0};
     viewport.x = 0.0f;
@@ -535,6 +561,23 @@ void draw_frame()
 {
     vkWaitForFences(ctx.device, 1, &ctx.inFlightFences[ubo.image], VK_TRUE, UINT64_MAX);
     vkResetFences(ctx.device, 1, &ctx.inFlightFences[ubo.image]);
+
+
+    /* compute part */
+    vkWaitForFences(ctx.device, 1, &ctx.compute_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(ctx.device, 1, &ctx.compute_fence);
+    
+    update_buffer(ctx.ssbo_memory, &ssbo, sizeof(ssbo));
+    record_compute_commands();
+    
+    VkSubmitInfo compute_submit = {0};
+    compute_submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    compute_submit.commandBufferCount = 1;
+    compute_submit.pCommandBuffers = &ctx.compute_command_buffer;
+    
+    vkQueueSubmit(ctx.queue, 1, &compute_submit, ctx.compute_fence);
+    /* end compute */
+
     ubo.prev = ubo.curr;
     ubo.curr = glfwGetTime();
 
@@ -609,18 +652,64 @@ void init_vulkan()
     i32 x, y;
     glfwGetFramebufferSize(ctx.window, &x, &y);
     create_swap_chain(x, y);
-
     create_image_views();
     create_render_pass();
     create_framebuffers();
 
-    create_descriptor_set_layout();
-    create_uniform_bufers();
+    /* Create Layouts for buffers */
+    create_descriptor_set_layout(&ctx.ubo_descriptor_set_layout,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, "UBO layout");
+    create_descriptor_set_layout(&ctx.ssbo_descriptor_set_layout,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, "SSBO layout");
+
+    /* Create buffers */
+    create_buffers(
+            VK_IMAGE_COUNT,
+            ctx.ubo_buffers,
+            ctx.ubo_memories,
+            sizeof(ubo_data),
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            "UBO");
+
+    create_buffers(
+            1,
+            &ctx.ssbo_buffer,
+            &ctx.ssbo_memory,
+            sizeof(ssbo_data),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            "SSBO");
+
+    
     create_descriptor_pool();
-    create_descriptor_sets();
+
+    create_descriptor_sets(
+            VK_IMAGE_COUNT,
+            ctx.ubo_descriptor_sets,
+            ctx.ubo_descriptor_set_layout,
+            ctx.ubo_buffers, sizeof(ubo_data),
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            "UBO");
+
+
+    create_descriptor_sets(
+            1,
+            &ctx.ssbo_descriptor_set,
+            ctx.ssbo_descriptor_set_layout,
+            &ctx.ssbo_buffer,
+            sizeof(ssbo_data),
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            "SSBO");
+
+    create_command_pool();
+
+    create_compute_descriptor_set_layout();
+    create_compute_descriptor_set();
+    create_compute_pipeline();
+    create_compute_command_buffer(); 
 
     create_graphics_pipeline();
-    create_command_pool();
     create_command_buffers();
     create_sync_objects();
 
@@ -644,11 +733,11 @@ void cleanup()
 
     vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, NULL);
     vkDestroyDescriptorPool(ctx.device, ctx.descriptor_pool, NULL);
-    vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, NULL);
+    vkDestroyDescriptorSetLayout(ctx.device, ctx.ubo_descriptor_set_layout, NULL);
     
     for (u32 i = 0; i < VK_IMAGE_COUNT; i++) {
-        vkDestroyBuffer(ctx.device, ctx.ubo[i], NULL);
-        vkFreeMemory(ctx.device, ctx.ubo_memory[i], NULL);
+        vkDestroyBuffer(ctx.device, ctx.ubo_buffers[i], NULL);
+        vkFreeMemory(ctx.device, ctx.ubo_memories[i], NULL);
     }
 
     vkDestroyCommandPool(ctx.device, ctx.commandPool, NULL);
