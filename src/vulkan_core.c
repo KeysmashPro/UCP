@@ -220,7 +220,7 @@ void create_descriptor_set_layout(VkDescriptorSetLayout *layout,
     ubo_layout_binding.binding = 0;
     ubo_layout_binding.descriptorType = type;
     ubo_layout_binding.descriptorCount = 1;
-    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
     ubo_layout_binding.pImmutableSamplers = NULL;
     
     VkDescriptorSetLayoutCreateInfo layout_info = {0};
@@ -235,22 +235,19 @@ void create_descriptor_set_layout(VkDescriptorSetLayout *layout,
 
 void create_descriptor_pool(void)
 {
-    VkDescriptorPoolSize pool_sizes[3];
+    VkDescriptorPoolSize pool_sizes[2];
     
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     pool_sizes[0].descriptorCount = VK_IMAGE_COUNT;
     
     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    pool_sizes[1].descriptorCount = VK_IMAGE_COUNT + 1;
-    
-    pool_sizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    pool_sizes[2].descriptorCount = 1;
+    pool_sizes[1].descriptorCount = 2;
     
     VkDescriptorPoolCreateInfo pool_info = {0};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.poolSizeCount = 3;
+    pool_info.poolSizeCount = 2;
     pool_info.pPoolSizes = pool_sizes;
-    pool_info.maxSets = VK_IMAGE_COUNT * 2 + 1;
+    pool_info.maxSets = VK_IMAGE_COUNT + 2;
     
     if (vkCreateDescriptorPool(ctx.device, &pool_info, NULL, &ctx.descriptor_pool) != VKS) {
         fail("Failed to create descriptor pool!");
@@ -309,10 +306,6 @@ void update_buffer(VkDeviceMemory memory, const void *data, VkDeviceSize size)
     vkUnmapMemory(ctx.device, memory);
 }
 
-void update_uniform_buffer(uint32_t currentFrame)
-{
-    update_buffer(ctx.ubo_memories[currentFrame], &ubo, sizeof(ubo));
-}
 
 /* GRAPHICS PIPELINE */
 
@@ -551,6 +544,7 @@ void create_sync_objects()
     for (size_t i = 0; i < VK_IMAGE_COUNT; i++) {
         if (vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.imageAvailableSemaphores[i]) != VKS ||
             vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.renderFinishedSemaphores[i]) != VKS ||
+            vkCreateSemaphore(ctx.device, &semaphoreInfo, NULL, &ctx.computeFinishedSemaphores[i]) != VKS ||
             vkCreateFence(ctx.device, &fenceInfo, NULL, &ctx.inFlightFences[i]) != VKS) {
             fail("Failed to create synchronization objects!");
         }
@@ -567,25 +561,32 @@ void draw_frame()
     vkWaitForFences(ctx.device, 1, &ctx.compute_fence, VK_TRUE, UINT64_MAX);
     vkResetFences(ctx.device, 1, &ctx.compute_fence);
     
-    update_buffer(ctx.ssbo_memory, &ssbo, sizeof(ssbo));
     record_compute_commands();
     
+
     VkSubmitInfo compute_submit = {0};
     compute_submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     compute_submit.commandBufferCount = 1;
     compute_submit.pCommandBuffers = &ctx.compute_command_buffer;
-    
+    compute_submit.signalSemaphoreCount = 1;
+    compute_submit.pSignalSemaphores = &ctx.computeFinishedSemaphores[ubo.image];
+
     vkQueueSubmit(ctx.queue, 1, &compute_submit, ctx.compute_fence);
     /* end compute */
+
 
     ubo.prev = ubo.curr;
     ubo.curr = glfwGetTime();
 
+
     mouse_state* state = (mouse_state*)glfwGetWindowUserPointer(ctx.window);
     ubo.mouse.pos_x = state->pos_x;
     ubo.mouse.pos_y = state->pos_y;
+    ubo.mouse.scroll = state->scroll;
+    ubo.mouse.buttons = state->buttons;
 
-    update_uniform_buffer(ubo.image);
+    update_buffer(ctx.ubo_memories[ubo.image], &ubo, sizeof(ubo));
+
 
     u32 imageIndex;
     VkResult result = vkAcquireNextImageKHR(ctx.device, ctx.swapChain, UINT64_MAX, 
@@ -603,9 +604,15 @@ void draw_frame()
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     
-    VkSemaphore waitSemaphores[] = {ctx.imageAvailableSemaphores[ubo.image]};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    submitInfo.waitSemaphoreCount = 1;
+    VkSemaphore waitSemaphores[] = {
+        ctx.imageAvailableSemaphores[ubo.image],
+        ctx.computeFinishedSemaphores[ubo.image]
+    };
+    VkPipelineStageFlags waitStages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+    };
+    submitInfo.waitSemaphoreCount = 2;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     
@@ -657,15 +664,17 @@ void init_vulkan()
     create_framebuffers();
 
     /* Create Layouts for buffers */
+
     create_descriptor_set_layout(&ctx.ubo_descriptor_set_layout,
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, "UBO layout");
     create_descriptor_set_layout(&ctx.ssbo_descriptor_set_layout,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, "SSBO layout");
 
     /* Create buffers */
+
     create_buffers(
             VK_IMAGE_COUNT,
-            ctx.ubo_buffers,
+            ctx.ubo_buffers, // Already a pointer
             ctx.ubo_memories,
             sizeof(ubo_data),
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -678,20 +687,19 @@ void init_vulkan()
             &ctx.ssbo_memory,
             sizeof(ssbo_data),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             "SSBO");
 
-    
     create_descriptor_pool();
 
     create_descriptor_sets(
             VK_IMAGE_COUNT,
             ctx.ubo_descriptor_sets,
             ctx.ubo_descriptor_set_layout,
-            ctx.ubo_buffers, sizeof(ubo_data),
+            ctx.ubo_buffers,
+            sizeof(ubo_data),
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             "UBO");
-
 
     create_descriptor_sets(
             1,
@@ -720,7 +728,7 @@ void init_vulkan()
 void cleanup_swap_chain()
 {
     iterate(i, ctx.swapChainImageCount) {
-            vkDestroyFramebuffer(ctx.device, ctx.swapChainFramebuffers[i], NULL);
+        vkDestroyFramebuffer(ctx.device, ctx.swapChainFramebuffers[i], NULL);
         vkDestroyImageView(ctx.device, ctx.swapChainImageViews[i], NULL);
     }
     vkDestroySwapchainKHR(ctx.device, ctx.swapChain, NULL);
@@ -728,17 +736,22 @@ void cleanup_swap_chain()
 
 void cleanup()
 {
+    cleanup_compute();
     cleanup_swap_chain();
-    vkDestroyPipeline(ctx.device, ctx.graphicsPipeline, NULL);
 
+    vkDestroyPipeline(ctx.device, ctx.graphicsPipeline, NULL);
     vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, NULL);
     vkDestroyDescriptorPool(ctx.device, ctx.descriptor_pool, NULL);
     vkDestroyDescriptorSetLayout(ctx.device, ctx.ubo_descriptor_set_layout, NULL);
+    vkDestroyDescriptorSetLayout(ctx.device, ctx.ssbo_descriptor_set_layout, NULL);
     
     for (u32 i = 0; i < VK_IMAGE_COUNT; i++) {
         vkDestroyBuffer(ctx.device, ctx.ubo_buffers[i], NULL);
         vkFreeMemory(ctx.device, ctx.ubo_memories[i], NULL);
     }
+
+    vkDestroyBuffer(ctx.device, ctx.ssbo_buffer, NULL);
+    vkFreeMemory(ctx.device, ctx.ssbo_memory, NULL);
 
     vkDestroyCommandPool(ctx.device, ctx.commandPool, NULL);
     

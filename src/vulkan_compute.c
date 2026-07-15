@@ -8,19 +8,6 @@
 #include "shaders/shaderdump.h"
 
 
-void create_compute_descriptor_set(void)
-{
-    create_descriptor_sets(
-        1,
-        &ctx.compute_descriptor_set,
-        ctx.compute_descriptor_set_layout,
-        &ctx.ssbo_buffer,
-        sizeof(ssbo_data),
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        "Compute SSBO"
-    );
-}
-
 void create_compute_descriptor_set_layout(void)
 {
     VkDescriptorSetLayoutBinding ssbo_binding = {0};
@@ -40,6 +27,19 @@ void create_compute_descriptor_set_layout(void)
     }
 }
 
+void create_compute_descriptor_set(void)
+{
+    create_descriptor_sets(
+        1,
+        &ctx.compute_descriptor_set,
+        ctx.compute_descriptor_set_layout,
+        &ctx.ssbo_buffer,
+        sizeof(ssbo_data),
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        "Compute SSBO"
+    );
+}
+
 void create_compute_pipeline(void)
 {
     VkShaderModule compute_shader = createShaderModule(comp_spv, comp_size);
@@ -49,11 +49,16 @@ void create_compute_pipeline(void)
     shader_stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     shader_stage.module = compute_shader;
     shader_stage.pName = "main";
+
+    VkDescriptorSetLayout layouts[] = {
+        ctx.compute_descriptor_set_layout,
+        ctx.ubo_descriptor_set_layout
+    };
     
     VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &ctx.compute_descriptor_set_layout;
+    pipeline_layout_info.pSetLayouts = layouts;
     
     if (vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, NULL, 
         &ctx.compute_pipeline_layout) != VKS) {
@@ -103,11 +108,23 @@ void record_compute_commands(void)
     vkCmdBindPipeline(ctx.compute_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
                       ctx.compute_pipeline);
     
+    VkDescriptorSet sets[] = {
+        ctx.compute_descriptor_set,
+        ctx.ubo_descriptor_sets[ubo.image]
+    };
     vkCmdBindDescriptorSets(ctx.compute_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-        ctx.compute_pipeline_layout, 0, 1, &ctx.compute_descriptor_set, 0, NULL);
+        ctx.compute_pipeline_layout, 0, 2, sets, 0, NULL);
     
     u32 workgroup_count = (sizeof(ssbo_data) / sizeof(f32) + 255) / 256;
     vkCmdDispatch(ctx.compute_command_buffer, workgroup_count, 1, 1);
     
     vkEndCommandBuffer(ctx.compute_command_buffer);
+}
+
+void cleanup_compute(void)
+{
+    vkDestroyPipeline(ctx.device, ctx.compute_pipeline, NULL);
+    vkDestroyPipelineLayout(ctx.device, ctx.compute_pipeline_layout, NULL);
+    vkDestroyDescriptorSetLayout(ctx.device, ctx.compute_descriptor_set_layout, NULL);
+    vkDestroyFence(ctx.device, ctx.compute_fence, NULL);
 }

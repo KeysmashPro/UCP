@@ -1,12 +1,30 @@
 #version 450
-
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 layout(set = 0, binding = 0) buffer SSBO {
     float data[];
 } ssbo;
 
+layout(set = 1, binding = 0) uniform UBO {
+    float curr;
+    float prev;
+    uint  frame;
+    uint  image;
+    float x_res;
+    float y_res;
+    float x_pos;
+    float y_pos;
+    float scroll;
+    uint  buttons;
+} ubo;
+
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= ssbo.data.length()) return;
+
+    if (idx == 0) {
+        float held = float((ubo.buttons & 1u) != 0u);
+        ssbo.data[0] += held * 0.02 - (1.0 - held) * 0.01;
+        ssbo.data[0] = clamp(ssbo.data[0], 0.0, 1.0);
+    }
 }

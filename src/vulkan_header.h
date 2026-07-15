@@ -46,6 +46,7 @@ typedef struct {
     /* Synchronization */
     VkSemaphore imageAvailableSemaphores[VK_IMAGE_COUNT];
     VkSemaphore renderFinishedSemaphores[VK_IMAGE_COUNT];
+    VkSemaphore computeFinishedSemaphores[VK_IMAGE_COUNT];
     VkFence inFlightFences[VK_IMAGE_COUNT];
     
     /* Descriptor pool */
@@ -62,6 +63,9 @@ typedef struct {
     VkDeviceMemory ssbo_memory;
     VkDescriptorSetLayout ssbo_descriptor_set_layout;
     VkDescriptorSet ssbo_descriptor_set;
+
+    VkBuffer ssbo_staging_buffer;
+    VkDeviceMemory ssbo_staging_memory;
     
     /* Compute */
     VkPipeline compute_pipeline;
@@ -139,6 +143,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
 void drawFrame(void);
 void initVulkan(void);
+void cleanup_compute(void);
 void cleanup_swap_chain(void);
 void cleanup(void);
 void handle_window_resize(void);
