@@ -748,16 +748,18 @@ void cleanup()
     for (u32 i = 0; i < VK_IMAGE_COUNT; i++) {
         vkDestroyBuffer(ctx.device, ctx.ubo_buffers[i], NULL);
         vkFreeMemory(ctx.device, ctx.ubo_memories[i], NULL);
+
     }
 
     vkDestroyBuffer(ctx.device, ctx.ssbo_buffer, NULL);
     vkFreeMemory(ctx.device, ctx.ssbo_memory, NULL);
 
     vkDestroyCommandPool(ctx.device, ctx.commandPool, NULL);
-    
+
     iterate(i, VK_IMAGE_COUNT) {
         vkDestroySemaphore(ctx.device, ctx.imageAvailableSemaphores[i], NULL);
         vkDestroySemaphore(ctx.device, ctx.renderFinishedSemaphores[i], NULL);
+        vkDestroySemaphore(ctx.device, ctx.computeFinishedSemaphores[i], NULL);
         vkDestroyFence(ctx.device, ctx.inFlightFences[i], NULL);
     }
 

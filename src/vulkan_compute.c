@@ -57,7 +57,7 @@ void create_compute_pipeline(void)
     
     VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
     pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_info.setLayoutCount = 1;
+    pipeline_layout_info.setLayoutCount = 2;
     pipeline_layout_info.pSetLayouts = layouts;
     
     if (vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, NULL, 
