@@ -78,6 +78,12 @@ typedef struct {
 } vk_context;
 
 typedef struct {
+    u32 string;
+    u32 vertex;
+    u32 object;
+} ssbo_offset;
+
+typedef struct {
     f32 curr;
     f32 prev;
     u32 frame;
@@ -85,6 +91,7 @@ typedef struct {
     f32 x_size;
     f32 y_size;
     mouse_state mouse;
+    ssbo_offset offset;
 } ubo_data;
 
 typedef struct {

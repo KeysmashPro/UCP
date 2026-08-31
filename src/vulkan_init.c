@@ -138,21 +138,12 @@ void create_logical_device()
     vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Features.shaderDrawParameters = VK_TRUE;
     
-    const char* validationLayers[] = {"VK_LAYER_KHRONOS_validation"};
-    u32 layerCount = 0;
-    
-    #ifdef DEBUG
-    layerCount = 1;
-    #endif
-    
     VkDeviceCreateInfo createInfo = {0};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.pQueueCreateInfos = &queueCreateInfo;
     createInfo.queueCreateInfoCount = 1;
     createInfo.ppEnabledExtensionNames = deviceExtensions;
     createInfo.enabledExtensionCount = 1;
-    createInfo.enabledLayerCount = layerCount;
-    createInfo.ppEnabledLayerNames = layerCount > 0 ? validationLayers : NULL;
     createInfo.pNext = &vulkan11Features;
     
     VkResult result = vkCreateDevice(ctx.physicalDevice, &createInfo, NULL, &ctx.device);

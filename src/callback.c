@@ -33,6 +33,6 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     mouse_state* state = (mouse_state*)glfwGetWindowUserPointer(window);
-    state->scroll = yoffset;
+    state->scroll += yoffset;
 }
 

@@ -12,4 +12,6 @@ Vulkan program prototype
 ```bash
 make          # native build
 make run      # build and run
-make win      # cross-compile for windows (mingw required)
+make windows  # cross-compile for windows (mingw required)
+```
+

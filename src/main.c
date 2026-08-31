@@ -2,7 +2,7 @@
 
 #include "defines.h"
 #include "callback.c"
-#include "vulkan_core.c"
+#include "vulkan_main.c"
 
 #include "platform.c"
 #include "../lib/volk/volk.c"

@@ -20,8 +20,11 @@ ifeq ($(PLATFORM),linux)
     TARGET   := $(BUILD_DIR)/mcp
     LDFLAGS_BASE  := -lglfw -lm
     NATIVE_TUNING := -march=native -mtune=native
-    SANITIZERS    := -fsanitize=address,undefined -fno-omit-frame-pointer
+	SANITIZERS    := -fsanitize=address,undefined -fno-omit-frame-pointer
     SANITIZERS_LD := -fsanitize=address,undefined
+    ASAN_OPTIONS  := detect_leaks=1:halt_on_error=0
+    UBSAN_OPTIONS := print_stacktrace=1:halt_on_error=0
+    LSAN_OPTIONS  := suppressions=$(CURDIR)/lsan.supp:print_suppressions=0
 else ifeq ($(PLATFORM),windows)
     CC       := clang
     TARGET   := $(BUILD_DIR)/mcp.exe
@@ -59,7 +62,7 @@ RESET  := \033[0m
 
 all: clean compile
 
-win:
+windows:
 	@$(MAKE) PLATFORM=mingw compile
 
 run: clean compile
@@ -74,7 +77,7 @@ debug: CFLAGS := $(CFLAGS_DEBUG)
 debug: LDFLAGS := $(LDFLAGS_DEBUG)
 debug: clean compile
 	@echo "$(GREEN)Running in DEBUG mode with Sanitizers:$(RESET)"
-	@./$(TARGET)
+	@ASAN_OPTIONS="$(ASAN_OPTIONS)" UBSAN_OPTIONS="$(UBSAN_OPTIONS)" LSAN_OPTIONS="$(LSAN_OPTIONS)" ./$(TARGET)
 
 compile: $(TARGET)
 
@@ -118,4 +121,4 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f src/shaders/shaderdump.h
 
-.PHONY: all compile run release debug clean win
+.PHONY: all compile run release debug clean windows
