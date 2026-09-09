@@ -17,7 +17,7 @@ endif
 
 ifeq ($(PLATFORM),linux)
     CC       := cc
-    TARGET   := $(BUILD_DIR)/mcp
+    TARGET   := $(BUILD_DIR)/ucp
     LDFLAGS_BASE  := -lglfw -lm
     NATIVE_TUNING := -march=native -mtune=native
 	SANITIZERS    := -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -27,14 +27,14 @@ ifeq ($(PLATFORM),linux)
     LSAN_OPTIONS  := suppressions=$(CURDIR)/lsan.supp:print_suppressions=0
 else ifeq ($(PLATFORM),windows)
     CC       := clang
-    TARGET   := $(BUILD_DIR)/mcp.exe
+    TARGET   := $(BUILD_DIR)/ucp.exe
     LDFLAGS_BASE  := -lglfw3 -lgdi32 -luser32 -lshell32
     NATIVE_TUNING :=
     SANITIZERS    :=
     SANITIZERS_LD :=
 else ifeq ($(PLATFORM),mingw)
     CC       := x86_64-w64-mingw32-gcc
-    TARGET   := $(BUILD_DIR)/mcp.exe
+    TARGET   := $(BUILD_DIR)/ucp.exe
     PLATFORM_INCLUDES := -I./lib/win64/glfw/include
     LDFLAGS_BASE  := -L./lib/win64/glfw -lglfw3 -lgdi32 -luser32 -lshell32
     NATIVE_TUNING :=

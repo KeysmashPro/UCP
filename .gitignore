@@ -1,3 +1,4 @@
+.gitlab-ci-local/
 src/shaders/shaderdump.h
 src/shaders/*.spv
 build*/
