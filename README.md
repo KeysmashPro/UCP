@@ -16,14 +16,12 @@ make windows  # cross-compile for windows (mingw required)
 ```
 
 #### Docker CI local build:
-Docker and gitlab-ci-local required for CI  
+Docker and woodpecker-cli required for CI  
 Bootstrap:
 ```bash
 docker build -t vulkan-ci-build:local -f Dockerfile-ci .
 ```
 Build:
 ```bash
-gitlab-ci-local build
+make ci-build
 ```
-
-

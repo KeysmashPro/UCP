@@ -14,7 +14,6 @@ ifeq ($(PLATFORM),)
     PLATFORM := linux
   endif
 endif
-
 ifeq ($(PLATFORM),linux)
     CC       := cc
     TARGET   := $(BUILD_DIR)/ucp
@@ -121,4 +120,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f src/shaders/shaderdump.h
 
-.PHONY: all compile run release debug clean windows
+ci-build:
+	woodpecker-cli exec --env LOCAL_UID=$$(id -u) --env LOCAL_GID=$$(id -g) .woodpecker/ci-build.yml
+
+.PHONY: all compile run release debug ci-build windows clean 

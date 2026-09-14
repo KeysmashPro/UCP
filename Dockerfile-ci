@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     libxxf86vm-dev \
     pkg-config \
     mingw-w64 \
+    gosu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -1,0 +1,13 @@
+when:
+  - event: [push, tag, manual]
+    branch: main
+
+steps:
+  - name: build
+    image: vulkan-ci-build:latest
+    pull: false
+    commands:
+      - LOCAL_UID="${LOCAL_UID:-0}"
+      - LOCAL_GID="${LOCAL_GID:-0}"
+      - if [ "$LOCAL_UID" != "0" ]; then groupadd -o -g "$LOCAL_GID" builder 2>/dev/null || true; useradd -o -m -u "$LOCAL_UID" -g "$LOCAL_GID" -s /bin/sh builder 2>/dev/null || true; fi
+      - if [ "$LOCAL_UID" != "0" ]; then gosu builder make release && gosu builder make windows; else make release && make windows; fi
