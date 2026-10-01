@@ -121,6 +121,7 @@ clean:
 	rm -f src/shaders/shaderdump.h
 
 ci-build:
+	export WOODPECKER_REPO_PATH=$(CURDIR); \
 	woodpecker-cli exec --env LOCAL_UID=$$(id -u) --env LOCAL_GID=$$(id -g) .woodpecker/ci-build.yml
 
 .PHONY: all compile run release debug ci-build windows clean 

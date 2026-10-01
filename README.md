@@ -19,7 +19,7 @@ make windows  # cross-compile for windows (mingw required)
 Docker and woodpecker-cli required for CI  
 Bootstrap:
 ```bash
-docker build -t vulkan-ci-build:local -f Dockerfile-ci .
+docker build -t vulkan-ci-build:latest -f Dockerfile-ci .
 ```
 Build:
 ```bash
