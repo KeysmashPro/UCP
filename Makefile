@@ -102,13 +102,13 @@ src/shaders/shaderdump.h: src/shaders/shader.vert src/shaders/shader.frag src/sh
 	@echo "#include <stdint.h>" >> $@
 	@echo "#include <stddef.h>" >> $@
 	@echo "static const uint32_t vert_spv[] = {" >> $@
-	@od -v -An -tx4 -w4 $(BUILD_DIR)/vert.spv | sed 's/ /0x/g; s/\t/ /g; s/$$/,/' >> $@
+	@od -v -An -tx4 $(BUILD_DIR)/vert.spv | awk '{ for (i=1; i<=NF; i++) printf "0x%s, ", $$i; print "" }' >> $@
 	@echo "};" >> $@
 	@echo "static const uint32_t frag_spv[] = {" >> $@
-	@od -v -An -tx4 -w4 $(BUILD_DIR)/frag.spv | sed 's/ /0x/g; s/\t/ /g; s/$$/,/' >> $@
+	@od -v -An -tx4 $(BUILD_DIR)/frag.spv | awk '{ for (i=1; i<=NF; i++) printf "0x%s, ", $$i; print "" }' >> $@
 	@echo "};" >> $@
 	@echo "static const uint32_t comp_spv[] = {" >> $@
-	@od -v -An -tx4 -w4 $(BUILD_DIR)/comp.spv | sed 's/ /0x/g; s/\t/ /g; s/$$/,/' >> $@
+	@od -v -An -tx4 $(BUILD_DIR)/comp.spv | awk '{ for (i=1; i<=NF; i++) printf "0x%s, ", $$i; print "" }' >> $@
 	@echo "};" >> $@
 	@echo "static const size_t vert_size = sizeof(vert_spv);" >> $@
 	@echo "static const size_t frag_size = sizeof(frag_spv);" >> $@
