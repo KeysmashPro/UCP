@@ -651,6 +651,7 @@ void draw_frame()
 
 void init_vulkan()
 {
+    debug("Run in DEBUG mode");
     create_instance();
     create_surface();
     pick_physical_device();

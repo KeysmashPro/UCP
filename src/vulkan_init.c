@@ -8,7 +8,7 @@
 
 /* VARIABLES */
 
-char *WIN_NAME = "mpc";
+char *WIN_NAME = "upc";
 u64 W_WIDTH  = 720;
 u64 W_HEIGHT = 480;
 
@@ -45,7 +45,7 @@ void create_instance()
 {
     VkApplicationInfo app_info = {0};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "mpc";
+    app_info.pApplicationName = "ucp";
     app_info.applicationVersion = VK_MAKE_VERSION(0, 0, 0);
     app_info.pEngineName = NULL;
     app_info.engineVersion = VK_MAKE_VERSION(0, 0, 0);

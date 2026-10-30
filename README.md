@@ -6,22 +6,20 @@ Vulkan program prototype
 
 - Vulkan SDK
 - GLFW
+- Or just podman
 
 ## Build
 
 ```bash
 make          # native build
 make run      # build and run
-make windows  # cross-compile for windows (mingw required)
+make windows  # cross-compile for windows (mingw64 required)
+make debug    # build and run with ASan/UBSan -O0 -g3 -DDEBUG
 ```
 
-#### Docker CI local build:
-Docker and woodpecker-cli required for CI  
-Bootstrap:
-```bash
-docker build -t vulkan-ci-build:latest -f Dockerfile-ci .
-```
+#### Rootless local build with podman:
 Build:
 ```bash
-make ci-build
+make podman-release  #(for linux)
+make podman-windows  #(with mingw64)
 ```
