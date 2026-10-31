@@ -21,5 +21,4 @@ make debug    # build and run with ASan/UBSan -O0 -g3 -DDEBUG
 Build:
 ```bash
 make podman-release  #(for linux)
-make podman-windows  #(with mingw64)
 ```

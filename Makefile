@@ -67,7 +67,7 @@ windows:
 	@$(MAKE) PLATFORM=mingw compile
 
 run: clean compile
-	@echo "$(GREEN)Running $(TARGET):$(RESET)"
+	@printf "$(GREEN)Running $(TARGET):$(RESET)\n"
 	@./$(TARGET)
 
 release: CFLAGS := $(CFLAGS_NATIVE)
@@ -77,7 +77,7 @@ release: clean compile
 debug: CFLAGS := $(CFLAGS_DEBUG)
 debug: LDFLAGS := $(LDFLAGS_DEBUG)
 debug: clean compile
-	@echo "$(GREEN)Running in DEBUG mode with Sanitizers:$(RESET)"
+	@printf "$(GREEN)Running in DEBUG mode with Sanitizers:$(RESET)\n"
 	@ASAN_OPTIONS="$(ASAN_OPTIONS)" UBSAN_OPTIONS="$(UBSAN_OPTIONS)" LSAN_OPTIONS="$(LSAN_OPTIONS)" ./$(TARGET)
 
 base: CFLAGS := $(CFLAGS_V1)
@@ -88,16 +88,16 @@ compile: $(TARGET)
 
 $(TARGET): $(SRCS) src/shaders/shaderdump.h
 	@mkdir -p $(BUILD_DIR)
-	@echo "$(GREEN)[$(PLATFORM)] Compiling $(TARGET):$(RESET)"
+	@printf "$(GREEN)Compiling $(TARGET) [$(PLATFORM)]:$(RESET)\n"
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
 
 src/shaders/shaderdump.h: src/shaders/shader.vert src/shaders/shader.frag src/shaders/shader.comp
 	@mkdir -p $(BUILD_DIR)
 	@if ! command -v $(GLSLC) > /dev/null 2>&1; then \
-		echo "$(RED)Error: glslc not found. Install the Vulkan SDK and shaderc $(RESET)"; \
+		printf "$(RED)Error: glslc not found. Install the Vulkan SDK and shaderc $(RESET)\n"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)Compiling shaders with $(GLSLC)...$(RESET)"
+	@printf "$(GREEN)Compiling shaders with $(GLSLC)...$(RESET)\n"
 	@$(GLSLC) -fshader-stage=vertex   src/shaders/shader.vert -o $(BUILD_DIR)/vert.spv
 	@$(GLSLC) -fshader-stage=fragment src/shaders/shader.frag -o $(BUILD_DIR)/frag.spv
 	@$(GLSLC) -fshader-stage=compute  src/shaders/shader.comp -o $(BUILD_DIR)/comp.spv
